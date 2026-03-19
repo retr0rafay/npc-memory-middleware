@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, WebSocket
 
 from npc_middleware.streaming import websocket_interact
 
-from npc_middleware.config import NPC_SYSTEM_PROMPT_TEMPLATE
+from npc_middleware.config import LORE_INJECTION_TEMPLATE, NPC_SYSTEM_PROMPT_TEMPLATE
 from npc_middleware.database import (
     get_npc_profile,
     init_db,
@@ -25,6 +25,7 @@ from npc_middleware.emotions import (
     update_emotions_from_interaction,
 )
 from npc_middleware.guardrails import (
+    fetch_relevant_lore,
     insert_lore_entry,
     list_lore_entries,
     run_guardrails,
@@ -122,12 +123,16 @@ async def interact(req: InteractRequest) -> InteractResponse:
     emo_state = get_or_create_state(req.npc_id, req.player_id)
     emotional_state_text = format_emotional_state(emo_state)
 
-    # 5. Build prompt and generate response
+    # 5. Build prompt with lore injection
+    lore_text = fetch_relevant_lore(query_embedding)
+    lore_section = LORE_INJECTION_TEMPLATE.format(lore_facts=lore_text) if lore_text else ""
+
     system_prompt = NPC_SYSTEM_PROMPT_TEMPLATE.format(
         npc_name=npc_name,
         personality=personality,
         memories=memories_text,
         emotional_state=emotional_state_text,
+        lore_section=lore_section,
     )
 
     npc_response = generate(prompt=req.message, system=system_prompt)

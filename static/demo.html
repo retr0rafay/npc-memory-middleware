@@ -1145,6 +1145,7 @@ async function sendMessage() {
           player_id: state.playerId,
           message: message,
           metadata: {},
+          mode: "stream_validated",
         }));
       };
 
@@ -1156,8 +1157,8 @@ async function sendMessage() {
             const statusLabels = {
               embedding_message: "Reading your words...",
               retrieving_memories: "Searching memories...",
-              generating_response: `${npc.npc_name} speaks...`,
-              checking_guardrails: "",
+              generating_response: `${npc.npc_name} gathers their thoughts...`,
+              checking_guardrails: `${npc.npc_name} chooses their words carefully...`,
             };
             if (!streamStarted && statusLabels[frame.status]) {
               speechEl.innerHTML = `<span class="thinking-indicator" style="display:inline">${statusLabels[frame.status]}</span>`;
@@ -1175,16 +1176,15 @@ async function sendMessage() {
             break;
 
           case "complete":
-            // Replace with final guardrail-validated response
-            speechEl.textContent = frame.response;
-            streamedText = frame.response;
-
-            // Guardrail flags
-            if (frame.guardrail_flags && frame.guardrail_flags.length > 0 && !frame.guardrail_retried) {
+            // In validated mode, streamed text is already clean — just add guardrail badges
+            if (frame.guardrail_flags && frame.guardrail_flags.length > 0) {
               state.guardrailTriggers++;
               const flagText = frame.guardrail_flags.map(f => f.replace(/^(auto_fixed|violated):/, "")).join(", ");
-              speechEl.innerHTML = escHtml(frame.response) +
-                `<div class="guardrail-notice">&#9883; The ancient wards stirred: ${escHtml(flagText)}</div>`;
+              let badgeHtml = `<div class="guardrail-notice">&#9883; The ancient wards stirred: ${escHtml(flagText)}</div>`;
+              if (frame.guardrail_retried) {
+                badgeHtml += `<div class="guardrail-notice">The spirits corrected the tale.</div>`;
+              }
+              speechEl.innerHTML = escHtml(streamedText) + badgeHtml;
             }
 
             state.interactionCount++;
@@ -1194,6 +1194,7 @@ async function sendMessage() {
             break;
 
           case "correction":
+            // Only received in stream_raw mode (authoring UI)
             state.guardrailTriggers++;
             const reason = frame.guardrail_flags.map(f => f.replace(/^(auto_fixed|violated):/, "")).join(", ");
             speechEl.innerHTML = escHtml(frame.response) +

@@ -18,8 +18,14 @@ from npc_middleware.emotions import (
     get_or_create_state,
     update_emotions_from_interaction,
 )
-from npc_middleware.guardrails import run_guardrails
-from npc_middleware.ollama_client import embed, generate_stream
+from npc_middleware.config import LORE_INJECTION_TEMPLATE, MAX_RESPONSE_WORDS
+from npc_middleware.guardrails import (
+    fetch_relevant_lore,
+    filter_token,
+    _get_active_policies,
+    run_guardrails,
+)
+from npc_middleware.ollama_client import embed, generate, generate_stream
 from npc_middleware.reflection import increment_counter, maybe_consolidate
 from npc_middleware.relationships import propagate_emotion_deltas
 from npc_middleware.schemas import InteractRequest
@@ -107,68 +113,137 @@ async def websocket_interact(websocket: WebSocket) -> None:
         emo_state = get_or_create_state(req.npc_id, req.player_id)
         emotional_state_text = format_emotional_state(emo_state)
 
-        # 5. Build prompt
-        system_prompt = NPC_SYSTEM_PROMPT_TEMPLATE.format(
-            npc_name=npc_name,
-            personality=personality,
-            memories=memories_text,
-            emotional_state=emotional_state_text,
-        )
+        # 5. Determine streaming mode and build prompt
+        mode = data.get("mode", "stream_validated")
 
-        # 6. Stream tokens
-        await _send_status(websocket, "generating_response")
+        if mode == "stream_raw":
+            # --- RAW MODE: stream tokens first, guardrails after ---
+            system_prompt = NPC_SYSTEM_PROMPT_TEMPLATE.format(
+                npc_name=npc_name,
+                personality=personality,
+                memories=memories_text,
+                emotional_state=emotional_state_text,
+                lore_section="",
+            )
+            await _send_status(websocket, "generating_response")
 
-        loop = asyncio.get_running_loop()
-        queue: asyncio.Queue = asyncio.Queue()
-        full_tokens: list[str] = []
+            loop = asyncio.get_running_loop()
+            queue: asyncio.Queue = asyncio.Queue()
+            full_tokens: list[str] = []
 
-        loop.run_in_executor(
-            None, _push_tokens_to_queue, loop, queue, req.message, system_prompt,
-        )
+            loop.run_in_executor(
+                None, _push_tokens_to_queue, loop, queue, req.message, system_prompt,
+            )
 
-        while True:
-            token = await queue.get()
-            if token is None:
-                break
-            if isinstance(token, tuple) and token[0] == "__error__":
-                await websocket.send_json({"type": "error", "detail": token[1]})
-                return
-            full_tokens.append(token)
-            await websocket.send_json({"type": "token", "content": token})
+            while True:
+                token = await queue.get()
+                if token is None:
+                    break
+                if isinstance(token, tuple) and token[0] == "__error__":
+                    await websocket.send_json({"type": "error", "detail": token[1]})
+                    return
+                full_tokens.append(token)
+                await websocket.send_json({"type": "token", "content": token})
 
-        full_response = "".join(full_tokens)
+            full_response = "".join(full_tokens)
 
-        # 7. Guardrails
-        await _send_status(websocket, "checking_guardrails")
-        guardrail_result = await run_guardrails(
-            response=full_response,
-            npc_profile=profile,
-            system_prompt=system_prompt,
-            player_message=req.message,
-        )
+            await _send_status(websocket, "checking_guardrails")
+            guardrail_result = await run_guardrails(
+                response=full_response,
+                npc_profile=profile,
+                system_prompt=system_prompt,
+                player_message=req.message,
+            )
 
-        # 8. Complete frame
-        await websocket.send_json({
-            "type": "complete",
-            "response": guardrail_result.final_response,
-            "guardrail_flags": guardrail_result.flags,
-            "guardrail_retried": guardrail_result.retried,
-            "retrieved_memory_count": len(raw_memories),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
-
-        # 9. Correction frame if retried
-        if guardrail_result.retried:
-            reason = _extract_correction_reason(guardrail_result.flags)
             await websocket.send_json({
-                "type": "correction",
+                "type": "complete",
                 "response": guardrail_result.final_response,
                 "guardrail_flags": guardrail_result.flags,
-                "reason": reason,
+                "guardrail_retried": guardrail_result.retried,
+                "retrieved_memory_count": len(raw_memories),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             })
 
-        # 10. Store interaction (post-guardrail)
-        npc_response = guardrail_result.final_response
+            if guardrail_result.retried:
+                reason = _extract_correction_reason(guardrail_result.flags)
+                await websocket.send_json({
+                    "type": "correction",
+                    "response": guardrail_result.final_response,
+                    "guardrail_flags": guardrail_result.flags,
+                    "reason": reason,
+                })
+
+            npc_response = guardrail_result.final_response
+
+        else:
+            # --- VALIDATED MODE (default): inject lore upfront, stream with inline filtering ---
+
+            # Pre-fetch relevant lore and inject into system prompt
+            lore_text = fetch_relevant_lore(query_embedding)
+            lore_section = LORE_INJECTION_TEMPLATE.format(lore_facts=lore_text) if lore_text else ""
+            system_prompt = NPC_SYSTEM_PROMPT_TEMPLATE.format(
+                npc_name=npc_name,
+                personality=personality,
+                memories=memories_text,
+                emotional_state=emotional_state_text,
+                lore_section=lore_section,
+            )
+
+            # Stream tokens with inline regex filtering
+            await _send_status(websocket, "generating_response")
+
+            active_policies = _get_active_policies(profile)
+            loop = asyncio.get_running_loop()
+            queue: asyncio.Queue = asyncio.Queue()
+            full_tokens: list[str] = []
+            all_flags: list[str] = []
+            word_count = 0
+            max_words_reached = False
+
+            loop.run_in_executor(
+                None, _push_tokens_to_queue, loop, queue, req.message, system_prompt,
+            )
+
+            while True:
+                token = await queue.get()
+                if token is None:
+                    break
+                if isinstance(token, tuple) and token[0] == "__error__":
+                    await websocket.send_json({"type": "error", "detail": token[1]})
+                    return
+
+                # Word count check (max_response_length)
+                word_count += len(token.split())
+                if word_count > MAX_RESPONSE_WORDS:
+                    if not max_words_reached:
+                        max_words_reached = True
+                        all_flags.append("auto_fixed:max_response_length")
+                    continue  # silently drop tokens past the limit
+
+                # Inline regex filtering (profanity, modern refs, character breaks)
+                filtered, token_flags = filter_token(token, profile, active_policies)
+                all_flags.extend(token_flags)
+
+                full_tokens.append(filtered)
+                await websocket.send_json({"type": "token", "content": filtered})
+
+            full_response = "".join(full_tokens)
+
+            # Deduplicate flags
+            unique_flags = list(dict.fromkeys(all_flags))
+
+            await websocket.send_json({
+                "type": "complete",
+                "response": full_response,
+                "guardrail_flags": unique_flags,
+                "guardrail_retried": False,
+                "retrieved_memory_count": len(raw_memories),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+
+            npc_response = full_response
+
+        # 10. Store interaction
         insert_memory(
             npc_id=req.npc_id,
             player_id=req.player_id,

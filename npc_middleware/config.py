@@ -27,7 +27,12 @@ Your current feelings toward this player:
 You have the following memories relevant to this conversation:
 {memories}
 
-Respond in character. Be concise. Stay consistent with your memories, personality, and emotional state."""
+Respond in character. Be concise. Stay consistent with your memories, personality, and emotional state.
+{lore_section}"""
+
+LORE_INJECTION_TEMPLATE = """
+IMPORTANT — Established world facts you MUST follow. Never contradict these:
+{lore_facts}"""
 
 EMOTION_ANALYSIS_PROMPT = """Analyze the emotional impact of this interaction on an NPC.
 

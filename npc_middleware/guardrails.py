@@ -177,8 +177,49 @@ POLICY_REGISTRY: dict[str, callable] = {
     "max_response_length": _check_max_response_length,
 }
 
+# Policies safe to run on partial text (token-by-token)
+INLINE_FILTER_POLICIES = {"no_profanity", "no_modern_references", "stay_in_character"}
+
 # Default policies (all enabled)
 DEFAULT_POLICIES = {name: True for name in POLICY_REGISTRY}
+
+
+# ---------------------------------------------------------------------------
+# Lore pre-fetch (for prompt injection)
+# ---------------------------------------------------------------------------
+
+def fetch_relevant_lore(query_embedding: list[float]) -> str:
+    """Fetch relevant lore facts and format them for prompt injection."""
+    results = search_lore(query_embedding)
+    if not results:
+        return ""
+    return "\n".join(f"- {entry['text']}" for entry in results)
+
+
+# ---------------------------------------------------------------------------
+# Inline token filtering (for live streaming)
+# ---------------------------------------------------------------------------
+
+def filter_token(text: str, profile: dict, active_policies: list[str]) -> tuple[str, list[str]]:
+    """Filter a text chunk using fast regex policies. Returns (filtered_text, flags)."""
+    current = text
+    flags = []
+
+    for policy_name in active_policies:
+        if policy_name not in INLINE_FILTER_POLICIES:
+            continue
+        check_fn = POLICY_REGISTRY.get(policy_name)
+        if not check_fn:
+            continue
+        result = check_fn(current, profile)
+        if not result.passed:
+            if result.auto_fixed is not None:
+                current = result.auto_fixed
+                flags.append(f"auto_fixed:{policy_name}")
+            else:
+                flags.append(f"flagged:{policy_name}")
+
+    return current, flags
 
 
 # ---------------------------------------------------------------------------
