@@ -1,0 +1,53 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: npc-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        reservations:
+          memory: 4g
+
+  ollama-setup:
+    image: ollama/ollama:latest
+    container_name: npc-ollama-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Pulling llama3..."
+        ollama pull llama3
+        echo "Pulling nomic-embed-text..."
+        ollama pull nomic-embed-text
+        echo "Models ready."
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+
+  middleware:
+    build: .
+    container_name: npc-middleware
+    ports:
+      - "8000:8000"
+    volumes:
+      - lancedb_data:/app/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  ollama_data:
+  lancedb_data:

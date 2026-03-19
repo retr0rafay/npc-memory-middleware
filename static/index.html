@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPC Authoring Tool</title>
+<style>
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-input: #0f1729;
+  --accent: #0f3460;
+  --highlight: #e94560;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6b6b80;
+  --border: #2a2a4a;
+  --trust-color: #4a9eff;
+  --fear-color: #9b59b6;
+  --anger-color: #e74c3c;
+  --affection-color: #e91e8c;
+  --success: #2ecc71;
+  --warning: #f39c12;
+  --radius: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+header h1 {
+  font-size: 18px;
+  color: var(--highlight);
+  white-space: nowrap;
+}
+
+nav { display: flex; gap: 4px; }
+
+nav button {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+nav button:hover { color: var(--text-primary); background: var(--accent); }
+nav button.active { color: var(--highlight); border-color: var(--highlight); background: rgba(233,69,96,0.1); }
+
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+section { display: none; }
+section.active { display: block; }
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card h3 { color: var(--highlight); margin-bottom: 8px; font-size: 15px; }
+.card .meta { color: var(--text-muted); font-size: 12px; margin-bottom: 8px; }
+.card p { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; color: var(--text-secondary); font-size: 12px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+input, textarea, select {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus, textarea:focus, select:focus { border-color: var(--highlight); }
+textarea { resize: vertical; min-height: 80px; }
+
+button.btn {
+  background: var(--highlight);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: opacity 0.2s;
+}
+
+button.btn:hover { opacity: 0.85; }
+button.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+button.btn-danger {
+  background: var(--anger-color);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h2 { font-size: 16px; color: var(--text-primary); }
+
+/* Emotion bars */
+.emotion-bar-container { margin-bottom: 12px; }
+.emotion-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.emotion-bar-label span:first-child { color: var(--text-secondary); text-transform: uppercase; }
+.emotion-bar-label span:last-child { color: var(--text-muted); }
+.emotion-bar {
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.emotion-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* Playground */
+.playground-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  height: calc(100vh - 180px);
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.chat-header select, .chat-header input {
+  width: auto;
+  flex: 1;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msg {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.msg.player {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--text-primary);
+  border-bottom-right-radius: 4px;
+}
+
+.msg.npc {
+  align-self: flex-start;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 4px;
+}
+
+.msg .guardrail-flags {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.flag-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(243, 156, 18, 0.2);
+  color: var(--warning);
+  border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.flag-badge.retried {
+  background: rgba(233, 69, 96, 0.2);
+  color: var(--highlight);
+  border-color: rgba(233, 69, 96, 0.3);
+}
+
+.chat-input {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input input { flex: 1; }
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar .card { margin-bottom: 0; }
+
+.loading {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Relationship rows */
+.rel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.rel-row .rel-info { color: var(--text-secondary); }
+.rel-row .rel-type { color: var(--highlight); margin: 0 8px; }
+.rel-row .rel-strength { color: var(--text-muted); }
+
+/* Policy toggles */
+.policy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.policy-toggle:last-child { border-bottom: none; }
+.policy-toggle label { font-size: 13px; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
+
+.toggle-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  transition: 0.2s;
+}
+
+.toggle-slider:before {
+  content: "";
+  position: absolute;
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider { background: var(--highlight); border-color: var(--highlight); }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); background: white; }
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--success);
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease;
+}
+
+.toast.error { border-left-color: var(--anger-color); }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.inline-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.inline-form .full-width { grid-column: 1 / -1; }
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>NPC Authoring Tool</h1>
+  <nav>
+    <button onclick="switchTab('npcs')" id="tab-btn-npcs" class="active">NPCs</button>
+    <button onclick="switchTab('relationships')" id="tab-btn-relationships">Relationships</button>
+    <button onclick="switchTab('lore')" id="tab-btn-lore">Lore</button>
+    <button onclick="switchTab('playground')" id="tab-btn-playground">Playground</button>
+    <button onclick="switchTab('emotions')" id="tab-btn-emotions">Emotions</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- NPCs Tab -->
+  <section id="tab-npcs" class="active">
+    <div class="section-header">
+      <h2>NPC Profiles</h2>
+      <button class="btn btn-sm" onclick="toggleNpcForm()">+ New NPC</button>
+    </div>
+
+    <div id="npc-form-container" class="card" style="display:none;">
+      <h3 id="npc-form-title">Create NPC</h3>
+      <div class="inline-form">
+        <div class="form-group">
+          <label>NPC ID</label>
+          <input id="npc-id" placeholder="e.g. blacksmith_01">
+        </div>
+        <div class="form-group">
+          <label>Name</label>
+          <input id="npc-name" placeholder="e.g. Grunk">
+        </div>
+        <div class="form-group full-width">
+          <label>Personality</label>
+          <textarea id="npc-personality" placeholder="Describe the NPC's personality, mannerisms, and background..."></textarea>
+        </div>
+        <div class="form-group full-width">
+          <label>Content Policies</label>
+          <div id="npc-policies">
+            <div class="policy-toggle">
+              <label>no_profanity</label>
+              <label class="toggle-switch"><input type="checkbox" data-policy="no_profanity" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="policy-toggle">
+              <label>no_modern_references</label>
+              <label class="toggle-switch"><input type="checkbox" data-policy="no_modern_references" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="policy-toggle">
+              <label>stay_in_character</label>
+              <label class="toggle-switch"><input type="checkbox" data-policy="stay_in_character" checked><span class="toggle-slider"></span></label>
+            </div>
+            <div class="policy-toggle">
+              <label>max_response_length</label>
+              <label class="toggle-switch"><input type="checkbox" data-policy="max_response_length" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+        </div>
+        <div class="full-width">
+          <button class="btn" onclick="saveNpc()">Save NPC</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="npc-list" class="card-grid"></div>
+  </section>
+
+  <!-- Relationships Tab -->
+  <section id="tab-relationships">
+    <div class="section-header">
+      <h2>NPC Relationships</h2>
+    </div>
+
+    <div class="card">
+      <h3>Create Relationship</h3>
+      <div class="inline-form">
+        <div class="form-group">
+          <label>Source NPC</label>
+          <select id="rel-source"></select>
+        </div>
+        <div class="form-group">
+          <label>Target NPC</label>
+          <select id="rel-target"></select>
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <input id="rel-type" placeholder="e.g. cousin, rival, employer">
+        </div>
+        <div class="form-group">
+          <label>Strength: <span id="rel-strength-val">0.50</span></label>
+          <input type="range" id="rel-strength" min="0" max="1" step="0.05" value="0.5" oninput="document.getElementById('rel-strength-val').textContent = this.value">
+        </div>
+        <div class="full-width">
+          <button class="btn" onclick="createRelationship()">Create Relationship</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Existing Relationships</h3>
+      <div class="form-group">
+        <label>View relationships for</label>
+        <select id="rel-view-npc" onchange="loadRelationships()"></select>
+      </div>
+      <div id="rel-list"></div>
+    </div>
+  </section>
+
+  <!-- Lore Tab -->
+  <section id="tab-lore">
+    <div class="section-header">
+      <h2>World Lore</h2>
+    </div>
+
+    <div class="card">
+      <h3>Add Lore Entry</h3>
+      <div class="form-group">
+        <label>Lore Fact</label>
+        <textarea id="lore-text" placeholder="Describe a world fact, rule, or piece of lore..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Category (optional)</label>
+        <input id="lore-category" placeholder="e.g. races, economy, geography">
+      </div>
+      <button class="btn" onclick="addLore()">Add Lore</button>
+    </div>
+
+    <div id="lore-list" class="card-grid" style="margin-top: 20px;"></div>
+  </section>
+
+  <!-- Playground Tab -->
+  <section id="tab-playground">
+    <div class="playground-layout">
+      <div class="chat-container">
+        <div class="chat-header">
+          <select id="play-npc" onchange="clearChat()"></select>
+          <input id="play-player" placeholder="Player ID" value="player_01" style="max-width: 160px;">
+        </div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input">
+          <input id="chat-input" placeholder="Say something to the NPC..." onkeydown="if(event.key==='Enter')sendMessage()">
+          <button class="btn" id="chat-send-btn" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+
+      <div class="sidebar">
+        <div class="card">
+          <h3>Emotional State</h3>
+          <div id="play-emotions">
+            <p class="empty-state">Send a message to see emotions</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>NPC Info</h3>
+          <div id="play-npc-info">
+            <p class="empty-state">Select an NPC</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Emotions Tab -->
+  <section id="tab-emotions">
+    <div class="section-header">
+      <h2>Emotion Lookup</h2>
+    </div>
+
+    <div class="card">
+      <div class="inline-form">
+        <div class="form-group">
+          <label>NPC</label>
+          <select id="emo-npc"></select>
+        </div>
+        <div class="form-group">
+          <label>Player ID</label>
+          <input id="emo-player" placeholder="e.g. player_01">
+        </div>
+        <div class="full-width">
+          <button class="btn" onclick="lookupEmotions()">Look Up</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="emo-results" class="card" style="display:none; margin-top: 20px;">
+      <h3>Emotional State</h3>
+      <div id="emo-bars"></div>
+      <p class="meta" id="emo-updated" style="margin-top: 12px;"></p>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const BASE = window.location.origin;
+
+// --- Helpers ---
+
+async function api(method, path, body = null) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (body) opts.body = JSON.stringify(body);
+
+  const res = await fetch(BASE + path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+function el(id) { return document.getElementById(id); }
+
+function toast(msg, isError = false) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  el('tab-' + name).classList.add('active');
+  el('tab-btn-' + name).classList.add('active');
+
+  const loaders = {
+    npcs: loadNpcs,
+    relationships: loadRelTab,
+    lore: loadLore,
+    playground: loadPlayground,
+    emotions: loadEmoTab,
+  };
+  if (loaders[name]) loaders[name]();
+}
+
+function renderEmotionBars(container, state) {
+  const dims = [
+    { key: 'trust', label: 'Trust', color: 'var(--trust-color)' },
+    { key: 'fear', label: 'Fear', color: 'var(--fear-color)' },
+    { key: 'anger', label: 'Anger', color: 'var(--anger-color)' },
+    { key: 'affection', label: 'Affection', color: 'var(--affection-color)' },
+  ];
+
+  container.innerHTML = dims.map(d => {
+    const val = (state[d.key] * 100).toFixed(0);
+    return `
+      <div class="emotion-bar-container">
+        <div class="emotion-bar-label">
+          <span>${d.label}</span>
+          <span>${(state[d.key]).toFixed(2)}</span>
+        </div>
+        <div class="emotion-bar">
+          <div class="emotion-bar-fill" style="width:${val}%;background:${d.color}"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// --- NPC Cache ---
+
+let npcCache = [];
+
+async function fetchNpcs() {
+  npcCache = await api('GET', '/npcs');
+  return npcCache;
+}
+
+function populateNpcSelects() {
+  const selects = ['rel-source', 'rel-target', 'rel-view-npc', 'play-npc', 'emo-npc'];
+  selects.forEach(id => {
+    const s = el(id);
+    if (!s) return;
+    const current = s.value;
+    s.innerHTML = '<option value="">-- Select NPC --</option>' +
+      npcCache.map(n => `<option value="${n.npc_id}">${n.npc_name} (${n.npc_id})</option>`).join('');
+    if (current) s.value = current;
+  });
+}
+
+// --- NPCs Tab ---
+
+function toggleNpcForm() {
+  const c = el('npc-form-container');
+  c.style.display = c.style.display === 'none' ? 'block' : 'none';
+  el('npc-form-title').textContent = 'Create NPC';
+  el('npc-id').disabled = false;
+}
+
+async function loadNpcs() {
+  await fetchNpcs();
+  populateNpcSelects();
+
+  const list = el('npc-list');
+  if (npcCache.length === 0) {
+    list.innerHTML = '<div class="empty-state">No NPCs created yet. Click "+ New NPC" to get started.</div>';
+    return;
+  }
+
+  list.innerHTML = npcCache.map(n => {
+    const personality = n.personality.length > 120 ? n.personality.slice(0, 120) + '...' : n.personality;
+    const policies = Object.entries(n.content_policies || {})
+      .filter(([_, v]) => v)
+      .map(([k]) => k)
+      .join(', ') || 'none';
+
+    return `
+      <div class="card">
+        <h3>${n.npc_name}</h3>
+        <div class="meta">${n.npc_id}</div>
+        <p>${personality}</p>
+        <div class="meta" style="margin-top:8px">Policies: ${policies}</div>
+        <button class="btn btn-sm" style="margin-top:12px" onclick="editNpc('${n.npc_id}')">Edit</button>
+      </div>`;
+  }).join('');
+}
+
+function editNpc(npcId) {
+  const npc = npcCache.find(n => n.npc_id === npcId);
+  if (!npc) return;
+
+  el('npc-form-container').style.display = 'block';
+  el('npc-form-title').textContent = 'Edit NPC';
+  el('npc-id').value = npc.npc_id;
+  el('npc-id').disabled = true;
+  el('npc-name').value = npc.npc_name;
+  el('npc-personality').value = npc.personality;
+
+  document.querySelectorAll('[data-policy]').forEach(cb => {
+    const policy = cb.dataset.policy;
+    cb.checked = npc.content_policies?.[policy] !== false;
+  });
+}
+
+async function saveNpc() {
+  const npcId = el('npc-id').value.trim();
+  const name = el('npc-name').value.trim();
+  const personality = el('npc-personality').value.trim();
+
+  if (!npcId || !name || !personality) {
+    toast('All fields are required', true);
+    return;
+  }
+
+  const policies = {};
+  document.querySelectorAll('[data-policy]').forEach(cb => {
+    policies[cb.dataset.policy] = cb.checked;
+  });
+
+  try {
+    await api('POST', '/npc/profile', {
+      npc_id: npcId,
+      npc_name: name,
+      personality: personality,
+      content_policies: policies,
+    });
+    toast('NPC saved');
+    el('npc-form-container').style.display = 'none';
+    el('npc-id').value = '';
+    el('npc-name').value = '';
+    el('npc-personality').value = '';
+    el('npc-id').disabled = false;
+    await loadNpcs();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// --- Relationships Tab ---
+
+async function loadRelTab() {
+  await fetchNpcs();
+  populateNpcSelects();
+  loadRelationships();
+}
+
+async function loadRelationships() {
+  const npcId = el('rel-view-npc').value;
+  const list = el('rel-list');
+
+  if (!npcId) {
+    list.innerHTML = '<div class="empty-state">Select an NPC to view relationships</div>';
+    return;
+  }
+
+  try {
+    const rels = await api('GET', `/npc/${npcId}/relationships`);
+    if (rels.length === 0) {
+      list.innerHTML = '<div class="empty-state">No relationships found</div>';
+      return;
+    }
+
+    list.innerHTML = rels.map(r => `
+      <div class="rel-row">
+        <div>
+          <span class="rel-info">${r.source_npc_id}</span>
+          <span class="rel-type">&rarr; ${r.relationship_type} &rarr;</span>
+          <span class="rel-info">${r.target_npc_id}</span>
+          <span class="rel-strength">(${r.strength.toFixed(2)})</span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="deleteRel('${r.source_npc_id}','${r.target_npc_id}')">Delete</button>
+      </div>`).join('');
+  } catch (e) {
+    list.innerHTML = `<div class="empty-state">${e.message}</div>`;
+  }
+}
+
+async function createRelationship() {
+  const source = el('rel-source').value;
+  const target = el('rel-target').value;
+  const type = el('rel-type').value.trim();
+  const strength = parseFloat(el('rel-strength').value);
+
+  if (!source || !target || !type) {
+    toast('All fields are required', true);
+    return;
+  }
+  if (source === target) {
+    toast('Source and target must be different', true);
+    return;
+  }
+
+  try {
+    await api('POST', '/npc/relationship', {
+      source_npc_id: source,
+      target_npc_id: target,
+      relationship_type: type,
+      strength: strength,
+    });
+    toast('Relationship created');
+    el('rel-view-npc').value = source;
+    loadRelationships();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function deleteRel(source, target) {
+  try {
+    await api('DELETE', '/npc/relationship', {
+      source_npc_id: source,
+      target_npc_id: target,
+    });
+    toast('Relationship deleted');
+    loadRelationships();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// --- Lore Tab ---
+
+async function loadLore() {
+  try {
+    const entries = await api('GET', '/lore');
+    const list = el('lore-list');
+
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="empty-state">No lore entries yet. Add some world facts above.</div>';
+      return;
+    }
+
+    list.innerHTML = entries.map(e => {
+      const cat = e.metadata?.category || 'general';
+      return `
+        <div class="card">
+          <div class="meta">${cat}</div>
+          <p>${e.text}</p>
+          <div class="meta" style="margin-top:8px">${new Date(e.created_at).toLocaleString()}</div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+async function addLore() {
+  const text = el('lore-text').value.trim();
+  const category = el('lore-category').value.trim();
+
+  if (!text) {
+    toast('Lore text is required', true);
+    return;
+  }
+
+  try {
+    await api('POST', '/lore', {
+      text: text,
+      metadata: category ? { category } : {},
+    });
+    toast('Lore entry added');
+    el('lore-text').value = '';
+    el('lore-category').value = '';
+    loadLore();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// --- Playground Tab ---
+
+async function loadPlayground() {
+  await fetchNpcs();
+  populateNpcSelects();
+  updatePlayNpcInfo();
+}
+
+function updatePlayNpcInfo() {
+  const npcId = el('play-npc').value;
+  const info = el('play-npc-info');
+
+  if (!npcId) {
+    info.innerHTML = '<p class="empty-state">Select an NPC</p>';
+    return;
+  }
+
+  const npc = npcCache.find(n => n.npc_id === npcId);
+  if (!npc) return;
+
+  info.innerHTML = `
+    <p style="margin-bottom:8px"><strong>${npc.npc_name}</strong></p>
+    <p style="font-size:12px;color:var(--text-secondary)">${npc.personality}</p>`;
+}
+
+function clearChat() {
+  el('chat-messages').innerHTML = '';
+  el('play-emotions').innerHTML = '<p class="empty-state">Send a message to see emotions</p>';
+  updatePlayNpcInfo();
+}
+
+async function sendMessage() {
+  const npcId = el('play-npc').value;
+  const playerId = el('play-player').value.trim();
+  const input = el('chat-input');
+  const message = input.value.trim();
+
+  if (!npcId || !playerId || !message) {
+    toast('Select NPC, enter player ID, and type a message', true);
+    return;
+  }
+
+  const msgs = el('chat-messages');
+  const btn = el('chat-send-btn');
+
+  // Show player message
+  msgs.innerHTML += `<div class="msg player">${escHtml(message)}</div>`;
+  input.value = '';
+  btn.disabled = true;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Show loading
+  const loadingId = 'loading-' + Date.now();
+  msgs.innerHTML += `<div class="msg npc loading" id="${loadingId}">Thinking...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const res = await api('POST', '/interact', {
+      npc_id: npcId,
+      player_id: playerId,
+      message: message,
+    });
+
+    // Remove loading, add response
+    el(loadingId).remove();
+
+    let flagsHtml = '';
+    if (res.guardrail_flags && res.guardrail_flags.length > 0) {
+      flagsHtml = '<div class="guardrail-flags">' +
+        res.guardrail_flags.map(f => `<span class="flag-badge">${f}</span>`).join('') +
+        (res.guardrail_retried ? '<span class="flag-badge retried">retried</span>' : '') +
+        '</div>';
+    }
+
+    msgs.innerHTML += `<div class="msg npc">${escHtml(res.response)}${flagsHtml}</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+
+    // Update emotions after a short delay (background task needs time)
+    setTimeout(() => refreshPlayEmotions(npcId, playerId), 2000);
+
+  } catch (e) {
+    el(loadingId).remove();
+    msgs.innerHTML += `<div class="msg npc" style="color:var(--anger-color)">Error: ${escHtml(e.message)}</div>`;
+  }
+
+  btn.disabled = false;
+}
+
+async function refreshPlayEmotions(npcId, playerId) {
+  try {
+    const state = await api('GET', `/npc/${npcId}/emotions/${playerId}`);
+    renderEmotionBars(el('play-emotions'), state);
+  } catch (_) {}
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Emotions Tab ---
+
+async function loadEmoTab() {
+  await fetchNpcs();
+  populateNpcSelects();
+}
+
+async function lookupEmotions() {
+  const npcId = el('emo-npc').value;
+  const playerId = el('emo-player').value.trim();
+
+  if (!npcId || !playerId) {
+    toast('Select NPC and enter player ID', true);
+    return;
+  }
+
+  try {
+    const state = await api('GET', `/npc/${npcId}/emotions/${playerId}`);
+    el('emo-results').style.display = 'block';
+    renderEmotionBars(el('emo-bars'), state);
+    el('emo-updated').textContent = `Last updated: ${new Date(state.last_updated).toLocaleString()}`;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// --- Init ---
+loadNpcs();
+</script>
+</body>
+</html>

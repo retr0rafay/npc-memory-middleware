@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thornhaven - NPC Memory Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --parchment: #2a2118;
+  --parchment-light: #3d3024;
+  --parchment-text: #d4c5a9;
+  --gold: #c9a84c;
+  --gold-dim: #8a6d2b;
+  --blood: #8b2500;
+  --forest: #2d5016;
+  --midnight: #0d0d14;
+  --stone: #4a4a5a;
+  --stone-light: #6a6a7a;
+  --trust-color: #4a9eff;
+  --fear-color: #9b59b6;
+  --anger-color: #c0392b;
+  --affection-color: #e91e8c;
+  --radius: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--midnight);
+  color: var(--parchment-text);
+  font-family: 'Crimson Text', Georgia, serif;
+  font-size: 15px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* === LAYOUT === */
+
+.game-container {
+  display: grid;
+  grid-template-columns: 250px 1fr 270px;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+.game-header {
+  grid-column: 1 / -1;
+  background: linear-gradient(180deg, #1a1008 0%, #0d0d14 100%);
+  border-bottom: 1px solid var(--gold-dim);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.game-header h1 {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+
+.game-header .subtitle {
+  font-size: 11px;
+  color: var(--stone-light);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.header-actions { display: flex; gap: 10px; align-items: center; }
+
+.btn {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  background: var(--gold-dim);
+  color: var(--parchment-text);
+  border: 1px solid var(--gold);
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+.btn:hover { background: var(--gold); color: #1a1008; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* === MAP PANEL === */
+
+.map-panel {
+  background: linear-gradient(135deg, #1a1510 0%, #0d0d14 100%);
+  border-right: 1px solid var(--gold-dim);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.map-title {
+  font-family: 'Cinzel', serif;
+  font-size: 13px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.map-svg {
+  width: 100%;
+  height: auto;
+}
+
+.map-location {
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.map-location:hover .loc-shape { filter: brightness(1.4); }
+.map-location.active .loc-shape { filter: drop-shadow(0 0 6px #c9a84c); }
+
+.loc-shape {
+  fill: var(--parchment);
+  stroke: var(--gold-dim);
+  stroke-width: 1.5;
+  transition: all 0.3s;
+}
+
+.map-location.active .loc-shape {
+  fill: var(--parchment-light);
+  stroke: var(--gold);
+  stroke-width: 2;
+}
+
+.loc-label {
+  fill: var(--parchment-text);
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.loc-npc-dot {
+  fill: var(--gold);
+  opacity: 0.7;
+}
+
+.map-path {
+  stroke: var(--stone);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  fill: none;
+  opacity: 0.4;
+}
+
+.player-marker {
+  fill: var(--gold);
+  transition: all 0.5s ease;
+}
+
+/* Location list below map */
+
+.location-list { margin-top: 16px; }
+
+.loc-item {
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.loc-item:hover { background: var(--parchment); border-color: var(--gold-dim); }
+.loc-item.active { background: var(--parchment); border-color: var(--gold); }
+
+.loc-item .loc-item-name {
+  font-family: 'Cinzel', serif;
+  color: var(--gold);
+  font-size: 12px;
+}
+
+.loc-item .loc-item-npcs {
+  font-size: 11px;
+  color: var(--stone-light);
+  margin-top: 2px;
+}
+
+/* === NARRATIVE PANEL === */
+
+.narrative-panel {
+  background: var(--midnight);
+  display: flex;
+  flex-direction: column;
+}
+
+.narrative-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+  scroll-behavior: smooth;
+}
+
+.narrative-entry { margin-bottom: 16px; line-height: 1.7; }
+
+.narrative-location {
+  color: var(--gold);
+  font-style: italic;
+  padding: 12px 0;
+  border-top: 1px solid var(--gold-dim);
+  border-bottom: 1px solid var(--gold-dim);
+  margin: 20px 0;
+  text-align: center;
+  font-size: 14px;
+}
+
+.narrative-location:first-child { border-top: none; margin-top: 0; }
+
+.narrative-npc {
+  padding-left: 16px;
+  border-left: 2px solid var(--gold-dim);
+}
+
+.narrative-npc .speaker {
+  font-family: 'Cinzel', serif;
+  color: var(--gold);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.narrative-npc .speech {
+  color: var(--parchment-text);
+}
+
+.narrative-player {
+  text-align: right;
+  color: #8fa8c8;
+  padding-right: 16px;
+  border-right: 2px solid #3a5a7a;
+}
+
+.narrative-player .speaker {
+  font-size: 12px;
+  color: #6a8aaa;
+  margin-bottom: 2px;
+}
+
+.narrative-system {
+  color: var(--stone-light);
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.narrative-intro {
+  color: var(--parchment-text);
+  line-height: 1.8;
+}
+
+.narrative-intro .hints {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: rgba(201, 168, 76, 0.05);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--stone-light);
+}
+
+.narrative-intro .hints p {
+  margin-bottom: 6px;
+  padding-left: 16px;
+  text-indent: -16px;
+}
+
+.guardrail-notice {
+  font-size: 11px;
+  color: var(--blood);
+  margin-top: 6px;
+  padding-left: 16px;
+  opacity: 0.7;
+}
+
+.thinking-indicator {
+  color: var(--stone-light);
+  font-style: italic;
+  padding-left: 16px;
+  border-left: 2px solid var(--gold-dim);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+.npc-link {
+  color: var(--gold);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.npc-link:hover { text-decoration-style: solid; }
+
+/* === INPUT BAR === */
+
+.input-bar {
+  grid-column: 1 / -1;
+  background: #1a1510;
+  border-top: 1px solid var(--gold-dim);
+  padding: 12px 20px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.input-bar input {
+  flex: 1;
+  background: var(--parchment);
+  color: var(--parchment-text);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-family: 'Crimson Text', serif;
+  font-size: 15px;
+  outline: none;
+}
+
+.input-bar input:focus { border-color: var(--gold); }
+.input-bar input::placeholder { color: var(--stone); }
+.input-bar input:disabled { opacity: 0.4; }
+
+/* === STATUS PANEL === */
+
+.status-panel {
+  background: linear-gradient(135deg, #0d0d14 0%, #1a1510 100%);
+  border-left: 1px solid var(--gold-dim);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.status-section {
+  margin-bottom: 20px;
+}
+
+.status-title {
+  font-family: 'Cinzel', serif;
+  font-size: 12px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--gold-dim);
+}
+
+.status-location-name {
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  color: var(--parchment-text);
+  margin-bottom: 4px;
+}
+
+.status-npcs-here {
+  font-size: 13px;
+  color: var(--stone-light);
+}
+
+.npc-portrait {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--parchment);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+}
+
+.npc-portrait:hover { border-color: var(--gold); }
+
+.npc-portrait .avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cinzel', serif;
+  font-size: 14px;
+  color: var(--parchment-text);
+  flex-shrink: 0;
+}
+
+.npc-portrait .npc-brief {
+  font-size: 12px;
+}
+
+.npc-portrait .npc-brief .name {
+  color: var(--gold);
+  font-family: 'Cinzel', serif;
+}
+
+.npc-portrait .npc-brief .role {
+  color: var(--stone-light);
+  font-size: 11px;
+}
+
+/* Emotion bars */
+.emo-container { margin-bottom: 10px; }
+.emo-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.emo-label .dim-name { color: var(--stone-light); }
+.emo-label .dim-val { color: var(--parchment-text); }
+.emo-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.emo-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stat-box {
+  background: var(--parchment);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: center;
+}
+
+.stat-box .stat-val {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.stat-box .stat-label {
+  font-size: 10px;
+  color: var(--stone-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* === SETUP MODAL === */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal {
+  background: var(--parchment);
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  padding: 30px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal h2 {
+  font-family: 'Cinzel', serif;
+  color: var(--gold);
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.modal p {
+  color: var(--parchment-text);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.setup-log {
+  background: var(--midnight);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius);
+  padding: 12px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--stone-light);
+  max-height: 250px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  white-space: pre-wrap;
+  display: none;
+}
+
+.modal .btn-group {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.empty-state {
+  color: var(--stone);
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+  padding: 12px;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* === RESPONSIVE === */
+@media (max-width: 900px) {
+  .game-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .map-panel {
+    border-right: none;
+    border-bottom: 1px solid var(--gold-dim);
+    max-height: 200px;
+  }
+  .status-panel {
+    display: none;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="game-container">
+
+  <!-- HEADER -->
+  <div class="game-header">
+    <div>
+      <h1>Thornhaven</h1>
+      <div class="subtitle">NPC Memory Middleware Demo</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="setup-btn" onclick="openSetup()">Setup World</button>
+    </div>
+  </div>
+
+  <!-- MAP PANEL -->
+  <div class="map-panel">
+    <div class="map-title">Village Map</div>
+
+    <svg class="map-svg" viewBox="0 0 220 420" xmlns="http://www.w3.org/2000/svg">
+      <!-- Paths -->
+      <path class="map-path" d="M110,380 L110,300"/>
+      <path class="map-path" d="M110,300 L60,240"/>
+      <path class="map-path" d="M110,300 L160,240"/>
+      <path class="map-path" d="M60,240 L110,180"/>
+      <path class="map-path" d="M160,240 L110,180"/>
+      <path class="map-path" d="M110,180 L60,110"/>
+      <path class="map-path" d="M110,180 L160,110"/>
+
+      <!-- Village Gate -->
+      <g class="map-location active" id="map-gate" onclick="moveToLocation('gate')">
+        <rect class="loc-shape" x="80" y="360" width="60" height="35" rx="4"/>
+        <text class="loc-label" x="110" y="382">Village Gate</text>
+      </g>
+
+      <!-- Tavern (center) -->
+      <g class="map-location" id="map-tavern" onclick="moveToLocation('tavern')">
+        <rect class="loc-shape" x="75" y="270" width="70" height="40" rx="4"/>
+        <text class="loc-label" x="110" y="286">Rusty Flagon</text>
+        <text class="loc-label" x="110" y="298" style="font-size:7px;fill:var(--stone-light)">Tavern</text>
+        <circle class="loc-npc-dot" cx="135" cy="275" r="3"/>
+      </g>
+
+      <!-- Forge (left) -->
+      <g class="map-location" id="map-forge" onclick="moveToLocation('forge')">
+        <rect class="loc-shape" x="20" y="215" width="65" height="40" rx="4"/>
+        <text class="loc-label" x="52" y="232">The Forge</text>
+        <text class="loc-label" x="52" y="244" style="font-size:7px;fill:var(--stone-light)">Blacksmith</text>
+        <circle class="loc-npc-dot" cx="75" cy="220" r="3"/>
+      </g>
+
+      <!-- Market (right) -->
+      <g class="map-location" id="map-market" onclick="moveToLocation('market')">
+        <rect class="loc-shape" x="130" y="215" width="70" height="40" rx="4"/>
+        <text class="loc-label" x="165" y="232">Market Alley</text>
+        <text class="loc-label" x="165" y="244" style="font-size:7px;fill:var(--stone-light)">Streets</text>
+        <circle class="loc-npc-dot" cx="190" cy="220" r="3"/>
+      </g>
+
+      <!-- Guard Tower (top-left) -->
+      <g class="map-location" id="map-guard_tower" onclick="moveToLocation('guard_tower')">
+        <rect class="loc-shape" x="20" y="85" width="70" height="40" rx="4"/>
+        <text class="loc-label" x="55" y="102">Guard Tower</text>
+        <text class="loc-label" x="55" y="114" style="font-size:7px;fill:var(--stone-light)">Garrison</text>
+        <circle class="loc-npc-dot" cx="80" cy="90" r="3"/>
+      </g>
+
+      <!-- Elder's Hut (top-right) -->
+      <g class="map-location" id="map-elders_hut" onclick="moveToLocation('elders_hut')">
+        <rect class="loc-shape" x="125" y="85" width="75" height="40" rx="4"/>
+        <text class="loc-label" x="162" y="102">Elder's Hut</text>
+        <text class="loc-label" x="162" y="114" style="font-size:7px;fill:var(--stone-light)">Council</text>
+        <circle class="loc-npc-dot" cx="190" cy="90" r="3"/>
+      </g>
+
+      <!-- Crossroads marker -->
+      <circle cx="110" cy="180" r="4" fill="var(--stone)" opacity="0.5"/>
+      <circle cx="110" cy="300" r="4" fill="var(--stone)" opacity="0.5"/>
+    </svg>
+
+    <div class="location-list" id="location-list"></div>
+  </div>
+
+  <!-- NARRATIVE PANEL -->
+  <div class="narrative-panel">
+    <div class="narrative-scroll" id="narrative"></div>
+  </div>
+
+  <!-- STATUS PANEL -->
+  <div class="status-panel">
+    <div class="status-section">
+      <div class="status-title">Current Location</div>
+      <div class="status-location-name" id="status-loc-name">Village Gate</div>
+      <div class="status-npcs-here" id="status-npcs-here">No one of note here</div>
+      <div id="npc-portraits"></div>
+    </div>
+
+    <div class="status-section" id="emotions-section" style="display:none;">
+      <div class="status-title">Emotional State</div>
+      <div id="status-emotions"></div>
+    </div>
+
+    <div class="status-section">
+      <div class="status-title">Journey Log</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val" id="stat-interactions">0</div>
+          <div class="stat-label">Exchanges</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-npcs-met">0</div>
+          <div class="stat-label">NPCs Met</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-locations">1</div>
+          <div class="stat-label">Explored</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" id="stat-guardrails">0</div>
+          <div class="stat-label">Wards</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT BAR -->
+  <div class="input-bar">
+    <input id="chat-input" placeholder="Move to a location to find someone to speak with..." disabled
+           onkeydown="if(event.key==='Enter' && !event.shiftKey)sendMessage()">
+    <button class="btn" id="speak-btn" onclick="sendMessage()" disabled>Speak</button>
+  </div>
+
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal">
+    <h2>Welcome to Thornhaven</h2>
+    <p>This demo creates a living village with 5 interconnected NPCs, each with their own personality, relationships, and memory. Your interactions shape how they perceive you — and word travels between them.</p>
+    <p>Click below to populate the world. This will create NPCs, relationships, and lore entries in the middleware.</p>
+    <div class="setup-log" id="setup-log"></div>
+    <div class="btn-group">
+      <button class="btn" id="begin-btn" style="display:none;" onclick="closeSetup()">Enter Thornhaven</button>
+      <button class="btn" id="do-setup-btn" onclick="runSetup()">Setup Thornhaven</button>
+      <button class="btn" id="skip-setup-btn" onclick="closeSetup()" style="opacity:0.6;">Skip (already set up)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = window.location.origin;
+
+// =========================================================================
+// GAME DATA
+// =========================================================================
+
+const NPCS = {
+  grunk: {
+    npc_id: "grunk",
+    npc_name: "Grunk",
+    role: "Blacksmith",
+    avatar: "G",
+    personality: "A gruff dwarven blacksmith in Thornhaven village. Speaks in short, blunt sentences. Suspicious of strangers but fair in business. Proud of his craft and references his work constantly. Protective of his cousin Brunhilda. Dislikes idle chatter. Has a dry sense of humor that surfaces rarely. Has lived in Thornhaven for 40 years. Never mentions the outside world.",
+    greeting: "The clang of hammer on anvil pauses. A stocky dwarf looks up from the forge, sweat glistening on his brow. He sizes you up with narrowed eyes.",
+  },
+  brunhilda: {
+    npc_id: "brunhilda",
+    npc_name: "Brunhilda",
+    role: "Tavern Keeper",
+    avatar: "B",
+    personality: "A warm, chatty tavern keeper at the Rusty Flagon in Thornhaven. Grunk the blacksmith is her cousin. Loves gossip and knows everyone's business. Speaks in a friendly, conspiratorial tone. Often shares rumors about other villagers. Has a weakness for dramatic storytelling. Fiercely loyal to regular patrons. Serves only mead and ale.",
+    greeting: "The warmth of the tavern wraps around you like a blanket. Behind the bar, a broad-shouldered woman with ruddy cheeks beams at you and waves you over.",
+  },
+  elder_maren: {
+    npc_id: "elder_maren",
+    npc_name: "Elder Maren",
+    role: "Village Elder",
+    avatar: "M",
+    personality: "A wise, elderly woman who serves as Thornhaven's village elder and council leader. Speaks formally and deliberately, weighing every word. Knows secrets about every villager but reveals them only when necessary. References the old laws and traditions frequently. Treats visitors as potential threats until proven otherwise. Has a subtle, sharp wit beneath her formality.",
+    greeting: "A thin, silver-haired woman sits behind a heavy oak desk, poring over scrolls. She looks up slowly, her pale eyes sharp and assessing.",
+  },
+  pip: {
+    npc_id: "pip",
+    npc_name: "Pip",
+    role: "Street Urchin",
+    avatar: "P",
+    personality: "A young street urchin in Thornhaven, around 14 years old. Quick-witted and streetwise. Speaks in casual slang and shorthand. Steals to survive but has a good heart deep down. Knows the underground passages and hidden spots of Thornhaven. Deeply distrusts authority figures, especially Captain Aldric the guard captain. Dreams of becoming an adventurer. Loyal to those who show him kindness.",
+    greeting: "A scrawny figure darts out from behind a market stall, nearly colliding with you. Bright, clever eyes peer up from beneath a mop of tangled hair.",
+  },
+  captain_aldric: {
+    npc_id: "captain_aldric",
+    npc_name: "Captain Aldric",
+    role: "Guard Captain",
+    avatar: "A",
+    personality: "The stern captain of Thornhaven's village guard. Speaks in clipped, military cadence. Deeply distrusts Pip the street urchin, whom he suspects of multiple thefts. Respects Elder Maren and follows her counsel without question. Worries constantly about the goblin raids threatening the village outskirts. Values order and duty above all else. Rarely smiles.",
+    greeting: "A tall man in dented chainmail stands ramrod straight at the tower entrance. He fixes you with a steely gaze, one hand resting on the pommel of his sword.",
+  },
+};
+
+const LOCATIONS = {
+  gate: {
+    name: "Village Gate",
+    description: "The weathered wooden gates of Thornhaven stand open, flanked by moss-covered stone pillars. A dirt road stretches south toward distant hills. The sounds of village life drift in from beyond.",
+    npcs: [],
+  },
+  tavern: {
+    name: "The Rusty Flagon",
+    description: "The tavern's low ceiling is thick with pipe smoke and the smell of barley ale. Rough-hewn tables crowd the floor, and a crackling hearth fills the room with amber light. Trophies and old weapons hang from the walls.",
+    npcs: ["brunhilda"],
+  },
+  forge: {
+    name: "Grunk's Forge",
+    description: "Heat rolls from the open forge in waves. Swords, plowshares, and horseshoes line the walls in meticulous order. The anvil at the center bears the scars of decades of honest work.",
+    npcs: ["grunk"],
+  },
+  market: {
+    name: "Market Alley",
+    description: "A narrow, winding lane between crooked buildings. Merchant stalls display dried herbs, salvaged tools, and questionable trinkets. Shadows pool in the doorways, and quick footsteps echo from unseen alleys.",
+    npcs: ["pip"],
+  },
+  guard_tower: {
+    name: "Guard Tower",
+    description: "The stone tower rises above the village rooftops, its parapet offering a view of the surrounding farmlands. A weapons rack stands by the entrance, and a map of the region is pinned to the wall, marked with red circles.",
+    npcs: ["captain_aldric"],
+  },
+  elders_hut: {
+    name: "Elder's Hut",
+    description: "The largest hut sits atop the village's only hill. Inside, shelves sag under the weight of ancient tomes and scrolls. Bundles of dried herbs hang from the rafters, and a faint scent of lavender fills the air.",
+    npcs: ["elder_maren"],
+  },
+};
+
+const RELATIONSHIPS = [
+  { source_npc_id: "grunk", target_npc_id: "brunhilda", relationship_type: "cousin", strength: 0.8 },
+  { source_npc_id: "brunhilda", target_npc_id: "grunk", relationship_type: "cousin", strength: 0.8 },
+  { source_npc_id: "elder_maren", target_npc_id: "grunk", relationship_type: "mentor", strength: 0.6 },
+  { source_npc_id: "elder_maren", target_npc_id: "brunhilda", relationship_type: "mentor", strength: 0.6 },
+  { source_npc_id: "pip", target_npc_id: "brunhilda", relationship_type: "regular_customer", strength: 0.5 },
+  { source_npc_id: "captain_aldric", target_npc_id: "pip", relationship_type: "suspicion", strength: 0.4 },
+  { source_npc_id: "captain_aldric", target_npc_id: "elder_maren", relationship_type: "respects", strength: 0.7 },
+];
+
+const LORE = [
+  { text: "Thornhaven is a small medieval village nestled in a valley between the Iron Hills and the Darkwood Forest. It was founded 200 years ago by dwarven miners.", metadata: { category: "geography" } },
+  { text: "The village is governed by a council of elders, currently led by Elder Maren. The council meets in the Elder's Hut on the hill.", metadata: { category: "governance" } },
+  { text: "Magic is forbidden in Thornhaven by ancient decree. Anyone caught practicing sorcery is banished to the Darkwood Forest.", metadata: { category: "laws" } },
+  { text: "The Rusty Flagon tavern serves only mead and ale brewed from local barley. Wine is considered a foreign luxury and is unavailable.", metadata: { category: "culture" } },
+  { text: "A band of goblins has been raiding farms on the outskirts of Thornhaven. The guard captain has been unable to stop them.", metadata: { category: "current_events" } },
+  { text: "Thornhaven's economy depends on Grunk's forge. He is the only blacksmith within three days' ride. The currency is Silver Crowns.", metadata: { category: "economy" } },
+];
+
+const CONTENT_POLICIES = {
+  no_profanity: true,
+  no_modern_references: true,
+  stay_in_character: true,
+  max_response_length: true,
+};
+
+// =========================================================================
+// GAME STATE
+// =========================================================================
+
+const state = {
+  currentLocation: "gate",
+  talkingTo: null,
+  playerId: "traveler_" + Math.random().toString(36).slice(2, 8),
+  setupComplete: false,
+  interactionCount: 0,
+  npcsMetSet: new Set(),
+  locationsVisited: new Set(["gate"]),
+  guardrailTriggers: 0,
+  sending: false,
+};
+
+// =========================================================================
+// API LAYER
+// =========================================================================
+
+async function api(method, path, body = null) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BASE + path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || res.statusText);
+  }
+  return res.json();
+}
+
+// =========================================================================
+// DOM HELPERS
+// =========================================================================
+
+function el(id) { return document.getElementById(id); }
+
+function escHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// =========================================================================
+// SETUP
+// =========================================================================
+
+function openSetup() {
+  el("setup-modal").classList.remove("hidden");
+}
+
+function closeSetup() {
+  el("setup-modal").classList.add("hidden");
+  if (!document.querySelector(".narrative-intro")) {
+    showIntro();
+  }
+}
+
+async function runSetup() {
+  const log = el("setup-log");
+  const doBtn = el("do-setup-btn");
+  const skipBtn = el("skip-setup-btn");
+  const beginBtn = el("begin-btn");
+
+  log.style.display = "block";
+  doBtn.disabled = true;
+  skipBtn.style.display = "none";
+
+  function appendLog(msg) {
+    log.textContent += msg + "\n";
+    log.scrollTop = log.scrollHeight;
+  }
+
+  try {
+    // Check connection
+    appendLog("Connecting to middleware...");
+    await api("GET", "/npcs");
+    appendLog("  Connected.\n");
+
+    // Create NPCs
+    appendLog("=== Creating NPCs ===");
+    for (const npc of Object.values(NPCS)) {
+      appendLog(`  ${npc.npc_name} (${npc.role})...`);
+      await api("POST", "/npc/profile", {
+        npc_id: npc.npc_id,
+        npc_name: npc.npc_name,
+        personality: npc.personality,
+        content_policies: CONTENT_POLICIES,
+      });
+      appendLog(`    OK`);
+    }
+
+    // Create relationships
+    appendLog("\n=== Forging Relationships ===");
+    for (const rel of RELATIONSHIPS) {
+      const src = NPCS[rel.source_npc_id]?.npc_name || rel.source_npc_id;
+      const tgt = NPCS[rel.target_npc_id]?.npc_name || rel.target_npc_id;
+      appendLog(`  ${src} --[${rel.relationship_type}]--> ${tgt}`);
+      await api("POST", "/npc/relationship", rel);
+    }
+
+    // Add lore
+    appendLog("\n=== Recording Lore ===");
+    for (const entry of LORE) {
+      appendLog(`  ${entry.text.slice(0, 50)}...`);
+      await api("POST", "/lore", entry);
+    }
+
+    appendLog("\n=============================");
+    appendLog("  Thornhaven awaits you.");
+    appendLog("=============================");
+
+    state.setupComplete = true;
+    beginBtn.style.display = "inline-block";
+    doBtn.style.display = "none";
+
+  } catch (e) {
+    appendLog(`\nERROR: ${e.message}`);
+    appendLog("Make sure the middleware is running:");
+    appendLog("  uvicorn npc_middleware.main:app --reload");
+    doBtn.disabled = false;
+    skipBtn.style.display = "inline-block";
+  }
+}
+
+// =========================================================================
+// NARRATIVE
+// =========================================================================
+
+function addNarrative(type, content, speaker = null) {
+  const narrative = el("narrative");
+  const entry = document.createElement("div");
+  entry.className = `narrative-entry narrative-${type}`;
+
+  switch (type) {
+    case "location":
+      entry.innerHTML = content;
+      break;
+    case "npc":
+      entry.innerHTML = `<div class="speaker">${escHtml(speaker)}</div><div class="speech">${content}</div>`;
+      break;
+    case "player":
+      entry.innerHTML = `<div class="speaker">You</div>${escHtml(content)}`;
+      break;
+    case "system":
+      entry.textContent = content;
+      break;
+    case "intro":
+      entry.innerHTML = content;
+      break;
+    default:
+      entry.textContent = content;
+  }
+
+  narrative.appendChild(entry);
+  entry.scrollIntoView({ behavior: "smooth", block: "end" });
+  return entry;
+}
+
+function showIntro() {
+  const narrative = el("narrative");
+  narrative.innerHTML = "";
+
+  addNarrative("intro", `
+    <p style="font-size:18px;color:var(--gold);font-family:'Cinzel',serif;margin-bottom:16px;">
+      Welcome to Thornhaven
+    </p>
+    <p>You stand before the weathered wooden gates of a small village nestled between the Iron Hills and the Darkwood Forest. Smoke rises from a forge to the west. The sound of laughter drifts from a tavern at the village center.</p>
+    <p style="margin-top:12px;">The guard at the gate waves you through with a tired nod.</p>
+    <div class="hints">
+      <p style="color:var(--gold);margin-bottom:8px;font-family:'Cinzel',serif;">Hints for the curious traveler:</p>
+      <p>&#8226; Help the blacksmith, and word may spread to the tavern...</p>
+      <p>&#8226; Cross a young pickpocket, and the guard captain may hear of it</p>
+      <p>&#8226; Speak of magic or contradict the village's lore, and the world may push back</p>
+      <p>&#8226; Return to those you've spoken with &mdash; they remember</p>
+    </div>
+    <p style="margin-top:16px;color:var(--stone-light);font-style:italic;">Click a location on the map to explore.</p>
+  `);
+}
+
+// =========================================================================
+// NAVIGATION
+// =========================================================================
+
+function moveToLocation(locId) {
+  if (state.sending) return;
+
+  const loc = LOCATIONS[locId];
+  if (!loc) return;
+
+  state.currentLocation = locId;
+  state.talkingTo = null;
+  state.locationsVisited.add(locId);
+
+  // Update map
+  document.querySelectorAll(".map-location").forEach(g => g.classList.remove("active"));
+  const mapEl = el("map-" + locId);
+  if (mapEl) mapEl.classList.add("active");
+
+  // Update location list
+  renderLocationList();
+
+  // Update status
+  el("status-loc-name").textContent = loc.name;
+  updateNpcPortraits();
+  el("emotions-section").style.display = "none";
+
+  // Update input
+  const input = el("chat-input");
+  const btn = el("speak-btn");
+
+  if (loc.npcs.length > 0) {
+    const npcName = NPCS[loc.npcs[0]]?.npc_name || "someone";
+    input.placeholder = `Speak to ${npcName}...`;
+    input.disabled = false;
+    btn.disabled = false;
+    state.talkingTo = loc.npcs[0];
+  } else {
+    input.placeholder = "There's no one to speak with here...";
+    input.disabled = true;
+    btn.disabled = true;
+  }
+
+  // Add narrative
+  addNarrative("location", `<em>${loc.name}</em>`);
+  addNarrative("system", loc.description);
+
+  if (loc.npcs.length > 0) {
+    const npc = NPCS[loc.npcs[0]];
+    addNarrative("system", npc.greeting);
+    state.npcsMetSet.add(npc.npc_id);
+  }
+
+  updateStats();
+}
+
+function renderLocationList() {
+  const list = el("location-list");
+  list.innerHTML = Object.entries(LOCATIONS).map(([id, loc]) => {
+    const isActive = id === state.currentLocation;
+    const npcNames = loc.npcs.map(n => NPCS[n]?.npc_name).filter(Boolean).join(", ");
+    return `
+      <div class="loc-item ${isActive ? 'active' : ''}" onclick="moveToLocation('${id}')">
+        <div class="loc-item-name">${loc.name}</div>
+        ${npcNames ? `<div class="loc-item-npcs">${npcNames}</div>` : ''}
+      </div>`;
+  }).join("");
+}
+
+function updateNpcPortraits() {
+  const container = el("npc-portraits");
+  const loc = LOCATIONS[state.currentLocation];
+
+  if (!loc || loc.npcs.length === 0) {
+    el("status-npcs-here").textContent = "No one of note here";
+    container.innerHTML = "";
+    return;
+  }
+
+  el("status-npcs-here").textContent = "Present:";
+  container.innerHTML = loc.npcs.map(npcId => {
+    const npc = NPCS[npcId];
+    return `
+      <div class="npc-portrait" onclick="startConversation('${npcId}')">
+        <div class="avatar">${npc.avatar}</div>
+        <div class="npc-brief">
+          <div class="name">${npc.npc_name}</div>
+          <div class="role">${npc.role}</div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function startConversation(npcId) {
+  state.talkingTo = npcId;
+  const npc = NPCS[npcId];
+  const input = el("chat-input");
+  input.placeholder = `Speak to ${npc.npc_name}...`;
+  input.disabled = false;
+  el("speak-btn").disabled = false;
+  input.focus();
+}
+
+// =========================================================================
+// INTERACTION
+// =========================================================================
+
+async function sendMessage() {
+  if (state.sending || !state.talkingTo) return;
+
+  const input = el("chat-input");
+  const message = input.value.trim();
+  if (!message) return;
+
+  const npcId = state.talkingTo;
+  const npc = NPCS[npcId];
+
+  state.sending = true;
+  input.value = "";
+  input.disabled = true;
+  el("speak-btn").disabled = true;
+  input.placeholder = `${npc.npc_name} is thinking...`;
+
+  // Player message
+  addNarrative("player", message);
+
+  // Create streaming NPC response entry
+  const npcEntry = document.createElement("div");
+  npcEntry.className = "narrative-entry narrative-npc";
+  npcEntry.innerHTML = `<div class="speaker">${escHtml(npc.npc_name)}</div><div class="speech"></div>`;
+  el("narrative").appendChild(npcEntry);
+  const speechEl = npcEntry.querySelector(".speech");
+
+  // Status indicator
+  speechEl.innerHTML = `<span class="thinking-indicator" style="display:inline">${npc.npc_name} considers your words...</span>`;
+  npcEntry.scrollIntoView({ behavior: "smooth" });
+
+  // Build WebSocket URL
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${wsProtocol}//${window.location.host}/interact/stream`;
+
+  let streamedText = "";
+  let streamStarted = false;
+
+  try {
+    const ws = new WebSocket(wsUrl);
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error("Connection timed out"));
+      }, 120000);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({
+          npc_id: npcId,
+          player_id: state.playerId,
+          message: message,
+          metadata: {},
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const frame = JSON.parse(event.data);
+
+        switch (frame.type) {
+          case "status":
+            const statusLabels = {
+              embedding_message: "Reading your words...",
+              retrieving_memories: "Searching memories...",
+              generating_response: `${npc.npc_name} speaks...`,
+              checking_guardrails: "",
+            };
+            if (!streamStarted && statusLabels[frame.status]) {
+              speechEl.innerHTML = `<span class="thinking-indicator" style="display:inline">${statusLabels[frame.status]}</span>`;
+            }
+            break;
+
+          case "token":
+            if (!streamStarted) {
+              speechEl.textContent = "";
+              streamStarted = true;
+            }
+            streamedText += frame.content;
+            speechEl.textContent = streamedText;
+            npcEntry.scrollIntoView({ behavior: "smooth", block: "end" });
+            break;
+
+          case "complete":
+            // Replace with final guardrail-validated response
+            speechEl.textContent = frame.response;
+            streamedText = frame.response;
+
+            // Guardrail flags
+            if (frame.guardrail_flags && frame.guardrail_flags.length > 0 && !frame.guardrail_retried) {
+              state.guardrailTriggers++;
+              const flagText = frame.guardrail_flags.map(f => f.replace(/^(auto_fixed|violated):/, "")).join(", ");
+              speechEl.innerHTML = escHtml(frame.response) +
+                `<div class="guardrail-notice">&#9883; The ancient wards stirred: ${escHtml(flagText)}</div>`;
+            }
+
+            state.interactionCount++;
+            state.npcsMetSet.add(npcId);
+            updateStats();
+            setTimeout(() => refreshEmotions(npcId), 2000);
+            break;
+
+          case "correction":
+            state.guardrailTriggers++;
+            const reason = frame.guardrail_flags.map(f => f.replace(/^(auto_fixed|violated):/, "")).join(", ");
+            speechEl.innerHTML = escHtml(frame.response) +
+              `<div class="guardrail-notice">&#9883; The ancient wards stirred: ${escHtml(reason)}</div>` +
+              `<div class="guardrail-notice">The spirits corrected the tale.</div>`;
+            updateStats();
+            break;
+
+          case "error":
+            speechEl.innerHTML = `<span style="color:var(--anger-color)">Something went wrong: ${escHtml(frame.detail)}</span>`;
+            break;
+        }
+      };
+
+      ws.onclose = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      ws.onerror = (err) => {
+        clearTimeout(timeout);
+        reject(new Error("WebSocket connection failed. Falling back..."));
+      };
+    });
+
+  } catch (e) {
+    // Fallback to REST API if WebSocket fails
+    try {
+      const res = await api("POST", "/interact", {
+        npc_id: npcId,
+        player_id: state.playerId,
+        message: message,
+      });
+
+      let responseHtml = escHtml(res.response);
+      if (res.guardrail_flags && res.guardrail_flags.length > 0) {
+        state.guardrailTriggers++;
+        const flagText = res.guardrail_flags.map(f => f.replace(/^(auto_fixed|violated):/, "")).join(", ");
+        responseHtml += `<div class="guardrail-notice">&#9883; The ancient wards stirred: ${escHtml(flagText)}</div>`;
+        if (res.guardrail_retried) {
+          responseHtml += `<div class="guardrail-notice">The spirits corrected the tale.</div>`;
+        }
+      }
+      speechEl.innerHTML = responseHtml;
+
+      state.interactionCount++;
+      state.npcsMetSet.add(npcId);
+      updateStats();
+      setTimeout(() => refreshEmotions(npcId), 2000);
+
+    } catch (e2) {
+      speechEl.innerHTML = `<span style="color:var(--anger-color)">Something went wrong: ${escHtml(e2.message)}</span>`;
+    }
+  }
+
+  state.sending = false;
+  input.disabled = false;
+  el("speak-btn").disabled = false;
+  input.placeholder = `Speak to ${npc.npc_name}...`;
+  input.focus();
+}
+
+async function refreshEmotions(npcId) {
+  try {
+    const emo = await api("GET", `/npc/${npcId}/emotions/${state.playerId}`);
+    const section = el("emotions-section");
+    section.style.display = "block";
+    renderEmotionBars(el("status-emotions"), emo, NPCS[npcId]?.npc_name || npcId);
+  } catch (_) {}
+}
+
+function renderEmotionBars(container, emo, npcName) {
+  const dims = [
+    { key: "trust", label: "Trust", color: "var(--trust-color)" },
+    { key: "fear", label: "Fear", color: "var(--fear-color)" },
+    { key: "anger", label: "Anger", color: "var(--anger-color)" },
+    { key: "affection", label: "Affection", color: "var(--affection-color)" },
+  ];
+
+  container.innerHTML = `<div style="font-size:12px;color:var(--gold);margin-bottom:8px;">${escHtml(npcName)}'s feelings toward you</div>` +
+    dims.map(d => {
+      const val = (emo[d.key] * 100).toFixed(0);
+      return `
+        <div class="emo-container">
+          <div class="emo-label">
+            <span class="dim-name">${d.label}</span>
+            <span class="dim-val">${emo[d.key].toFixed(2)}</span>
+          </div>
+          <div class="emo-bar">
+            <div class="emo-fill" style="width:${val}%;background:${d.color}"></div>
+          </div>
+        </div>`;
+    }).join("");
+}
+
+// =========================================================================
+// STATS
+// =========================================================================
+
+function updateStats() {
+  el("stat-interactions").textContent = state.interactionCount;
+  el("stat-npcs-met").textContent = state.npcsMetSet.size;
+  el("stat-locations").textContent = state.locationsVisited.size;
+  el("stat-guardrails").textContent = state.guardrailTriggers;
+}
+
+// =========================================================================
+// INIT
+// =========================================================================
+
+renderLocationList();
+showIntro();
+</script>
+</body>
+</html>
